@@ -2385,7 +2385,11 @@ msgstr "Enviar"
 
 #: common/lib/xmodule/xmodule/capa_base.py
 msgid "Submitting"
-msgstr "Enviando"
+msgstr "Guardando"
+
+#: common/lib/xmodule/xmodule/capa_base.py
+msgid "Submit problem"
+msgstr "Guardar respuesta"
 
 #: common/lib/xmodule/xmodule/capa_base.py
 msgid "Warning: The problem has been reset to its initial state!"
