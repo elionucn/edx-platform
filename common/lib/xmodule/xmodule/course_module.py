@@ -401,7 +401,7 @@ class CourseFields(object):
     allow_anonymous = Boolean(
         display_name=_("Allow Anonymous Discussion Posts"),
         help=_("Enter true or false. If true, students can create discussion posts that are anonymous to all users."),
-        scope=Scope.settings, default=True
+        scope=Scope.settings, default=False
     )
     allow_anonymous_to_peers = Boolean(
         display_name=_("Allow Anonymous Discussion Posts to Peers"),
@@ -414,6 +414,7 @@ class CourseFields(object):
     advanced_modules = List(
         display_name=_("Advanced Module List"),
         help=_("Enter the names of the advanced modules to use in your course."),
+        default=["survey","poll","word_cloud", "edx_sga"],
         scope=Scope.settings
     )
     has_children = True
@@ -631,7 +632,7 @@ class CourseFields(object):
     invitation_only = Boolean(
         display_name=_("Invitation Only"),
         help=_("Whether to restrict enrollment to invitation by the course staff."),
-        default=False,
+        default=True,
         scope=Scope.settings
     )
 
@@ -661,7 +662,7 @@ class CourseFields(object):
             "of three values: 'both' (show in catalog and allow access to about page), 'about' (only allow access "
             "to about page), 'none' (do not show in catalog and do not allow access to an about page)."
         ),
-        default=CATALOG_VISIBILITY_CATALOG_AND_ABOUT,
+        default=CATALOG_VISIBILITY_NONE,
         scope=Scope.settings,
         values=[
             {"display_name": _("Both"), "value": CATALOG_VISIBILITY_CATALOG_AND_ABOUT},
@@ -744,7 +745,7 @@ class CourseFields(object):
             "Enter true or false. If this value is true, proctored exams are enabled in your course. "
             "Note that enabling proctored exams will also enable timed exams."
         ),
-        default=False,
+        default=True,
         scope=Scope.settings
     )
 
@@ -774,7 +775,7 @@ class CourseFields(object):
             "Enter true or false. If this value is true, timed exams are enabled in your course. "
             "Regardless of this setting, timed exams are enabled if Enable Proctored Exams is set to true."
         ),
-        default=False,
+        default=True,
         scope=Scope.settings
     )
 
@@ -817,7 +818,7 @@ class CourseFields(object):
             "subsection until learners earn a minimum score in another, "
             "prerequisite subsection."
         ),
-        default=False,
+        default=True,
         scope=Scope.settings
     )
 
