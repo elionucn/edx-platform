@@ -1964,7 +1964,7 @@ def reset_student_attempts(request, course_id):
 
     # instructor authorization
     if all_students or delete_module:
-        if not has_access(request.user, 'instructor', course):
+        if not has_access(request.user, 'staff', course):
             return HttpResponseForbidden("Requires instructor access.")
 
     try:
