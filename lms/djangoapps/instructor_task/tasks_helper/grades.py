@@ -23,7 +23,7 @@ from lms.djangoapps.verify_student.models import SoftwareSecurePhotoVerification
 from openedx.core.djangoapps.content.block_structure.api import get_course_in_cache
 from openedx.core.djangoapps.course_groups.cohorts import bulk_cache_cohorts, get_cohort, is_course_cohorted
 from openedx.core.djangoapps.user_api.course_tag.api import BulkCourseTags
-from student.models import CourseEnrollment
+from student.models import CourseEnrollment, UserProfile, CourseAccessRole
 from student.roles import BulkRoleCache
 from xmodule.modulestore.django import modulestore
 from xmodule.partitions.partitions_service import PartitionService
@@ -49,6 +49,19 @@ def _user_enrollment_status(user, course_id):
         return ENROLLED_IN_COURSE
     return NOT_ENROLLED_IN_COURSE
 
+def _user_profile(user):
+    """ 
+    Return the profile name of a user
+    """
+    profile_name = UserProfile.objects.get(user_id=user).name
+    return profile_name
+
+def _user_date_enrolled(user, course_id):
+    """
+    Returns the date of enrollment of a user in a course
+    """
+    enrollment_date = CourseEnrollment.objects.get(user_id=user, course_id=course_id).created
+    return enrollment_date.strftime("%d-%m-%Y")
 
 def _flatten(iterable):
     return list(chain.from_iterable(iterable))
@@ -222,7 +235,7 @@ class CourseGradeReport(object):
         Returns a list of all applicable column headers for this grade report.
         """
         return (
-            ["Student ID", "Email", "Username", "Grade"] +
+            ["Student ID", "Email", "Username", "Nombre", "Fecha Matricula", "Nota Final"] +
             self._grades_header(context) +
             (['Cohort Name'] if context.cohorts_enabled else []) +
             [u'Experiment Group ({})'.format(partition.name) for partition in context.course_experiments] +
@@ -293,7 +306,7 @@ class CourseGradeReport(object):
             args = [iter(iterable)] * chunk_size
             return izip_longest(*args, fillvalue=fillvalue)
 
-        users = CourseEnrollment.objects.users_enrolled_in(context.course_id, include_inactive=True)
+        users = CourseEnrollment.objects.users_enrolled_in(context.course_id, include_inactive=True).exclude(courseaccessrole__role='staff')
         users = users.select_related('profile__allow_certificate')
         return grouper(users)
 
@@ -311,16 +324,16 @@ class CourseGradeReport(object):
                     grade_result = u'Not Available'
                 else:
                     if subsection_grade.graded_total.first_attempted is not None:
-                        grade_result = subsection_grade.graded_total.earned / subsection_grade.graded_total.possible
+                        grade_result = ("{0:.3}".format((subsection_grade.graded_total.earned / subsection_grade.graded_total.possible)/0.20))
                     else:
-                        grade_result = u'Not Attempted'
+                        grade_result = u'No realizado'
                 grade_results.append([grade_result])
             if assignment_info['separate_subsection_avg_headers']:
                 assignment_average = course_grade.grader_result['grade_breakdown'].get(assignment_type, {}).get(
                     'percent'
                 )
-                grade_results.append([assignment_average])
-        return [course_grade.percent] + _flatten(grade_results)
+                grade_results.append(["{0:.3}".format(assignment_average/0.20)])
+        return ["{0:.3}".format(course_grade.percent/0.20)] + _flatten(grade_results)
 
     def _user_cohort_group_names(self, user, context):
         """
@@ -413,6 +426,8 @@ class CourseGradeReport(object):
                 else:
                     success_rows.append(
                         [user.id, user.email, user.username] +
+			[_user_profile(user)] +
+			[_user_date_enrolled(user, context.course_id)] +
                         self._user_grade_results(course_grade, context) +
                         self._user_cohort_group_names(user, context) +
                         self._user_experiment_group_names(user, context) +
@@ -434,7 +449,7 @@ class ProblemGradeReport(object):
         start_time = time()
         start_date = datetime.now(UTC)
         status_interval = 100
-        enrolled_students = CourseEnrollment.objects.users_enrolled_in(course_id, include_inactive=True)
+        enrolled_students = CourseEnrollment.objects.users_enrolled_in(course_id, include_inactive=True).exclude(courseaccessrole__role='staff')
         task_progress = TaskProgress(action_name, enrolled_students.count(), start_time)
 
         # This struct encapsulates both the display names of each static item in the
@@ -445,7 +460,7 @@ class ProblemGradeReport(object):
         graded_scorable_blocks = cls._graded_scorable_blocks_to_header(course_id)
 
         # Just generate the static fields for now.
-        rows = [list(header_row.values()) + ['Enrollment Status', 'Grade'] + _flatten(graded_scorable_blocks.values())]
+        rows = [list(header_row.values()) + ['Nombre', 'Fecha Matricula', 'Enrollment Status', 'Nota Final'] + _flatten(graded_scorable_blocks.values())]
         error_rows = [list(header_row.values()) + ['error_msg']]
         current_step = {'step': 'Calculating Grades'}
 
@@ -468,6 +483,8 @@ class ProblemGradeReport(object):
                 continue
 
             enrollment_status = _user_enrollment_status(student, course_id)
+	    profile_name = _user_profile(student)
+	    enrollment_date = _user_date_enrolled(student, course_id)
 
             earned_possible_values = []
             for block_location in graded_scorable_blocks:
@@ -477,11 +494,11 @@ class ProblemGradeReport(object):
                     earned_possible_values.append([u'Not Available', u'Not Available'])
                 else:
                     if problem_score.first_attempted:
-                        earned_possible_values.append([problem_score.earned, problem_score.possible])
+                        earned_possible_values.append([("{0:.3}".format((problem_score.earned / problem_score.possible) / 0.20))])
                     else:
-                        earned_possible_values.append([u'Not Attempted', problem_score.possible])
+                        earned_possible_values.append([u'No realizado'])
 
-            rows.append(student_fields + [enrollment_status, course_grade.percent] + _flatten(earned_possible_values))
+            rows.append(student_fields + [profile_name, enrollment_date, enrollment_status, ("{0:.3}".format(course_grade.percent / 0.20))] + _flatten(earned_possible_values))
 
             task_progress.succeeded += 1
             if task_progress.attempted % status_interval == 0:
@@ -516,8 +533,7 @@ class ProblemGradeReport(object):
                         subsection_index=subsection_index,
                         subsection_name=subsection_info['subsection_block'].display_name,
                     )
-                    scorable_blocks_map[scorable_block.location] = [header_name + " (Earned)",
-                                                                    header_name + " (Possible)"]
+                    scorable_blocks_map[scorable_block.location] = [header_name]
         return scorable_blocks_map
 
 
