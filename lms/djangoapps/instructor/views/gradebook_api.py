@@ -15,9 +15,10 @@ from edxmako.shortcuts import render_to_response
 from lms.djangoapps.grades.new.course_grade_factory import CourseGradeFactory
 from lms.djangoapps.instructor.views.api import require_level
 from xmodule.modulestore.django import modulestore
+from student.models import UserProfile, CourseEnrollment
 
 # Grade book: max students per page
-MAX_STUDENTS_PER_PAGE_GRADE_BOOK = 20
+MAX_STUDENTS_PER_PAGE_GRADE_BOOK = 100
 
 
 def calculate_page_info(offset, total_students):
@@ -72,7 +73,7 @@ def get_grade_book_page(request, course, course_key):
     enrolled_students = User.objects.filter(
         courseenrollment__course_id=course_key,
         courseenrollment__is_active=1
-    ).order_by('username').select_related("profile")
+    ).order_by('username').select_related("profile").exclude(courseaccessrole__role='staff')
 
     total_students = enrolled_students.count()
     page = calculate_page_info(current_offset, total_students)
@@ -87,9 +88,12 @@ def get_grade_book_page(request, course, course_key):
         student_info = [
             {
                 'username': student.username,
+		        'name': UserProfile.objects.get(user=student).name,
                 'id': student.id,
                 'email': student.email,
-                'grade_summary': CourseGradeFactory().create(student, course).summary
+                'grade_summary': CourseGradeFactory().create(student, course).summary,
+                'last_login': student.last_login,
+                'enrolled_date': CourseEnrollment.objects.get(user_id=student, is_active=1, course_id=course_key).created,
             }
             for student in enrolled_students
         ]
