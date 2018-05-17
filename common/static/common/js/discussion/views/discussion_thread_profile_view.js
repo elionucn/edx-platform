@@ -37,6 +37,7 @@
                     params = $.extend(params, {
                         user: {
                             username: this.model.username,
+                            profile_name: this.model.profile_name,
                             user_url: this.model.user_url
                         }
                     });

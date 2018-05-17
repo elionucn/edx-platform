@@ -353,6 +353,7 @@
                     body: body,
                     created_at: (new Date()).toISOString(),
                     username: window.user.get('username'),
+                    profile_name: window.user.get('profile_name'),
                     votes: {
                         up_count: 0
                     },
