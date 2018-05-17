@@ -374,6 +374,7 @@
                     endorsed: isEndorsing,
                     endorsement: isEndorsing ? {
                         username: DiscussionUtil.getUser().get('username'),
+                        profile_name: DiscussionUtil.getUser().get('profile_name'),
                         user_id: DiscussionUtil.getUser().id,
                         time: new Date().toISOString()
                     } : null
@@ -496,6 +497,7 @@
                 return _.template($('#post-user-display-template').html())({
                     username: this.model.get('username') || null,
                     user_url: this.model.get('user_url'),
+                    profile_name: this.model.get('profile_name'),
                     is_community_ta: this.model.get('community_ta_authored'),
                     is_staff: this.model.get('staff_authored')
                 });

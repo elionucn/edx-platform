@@ -193,6 +193,7 @@
                     body: body,
                     created_at: (new Date()).toISOString(),
                     username: window.user.get('username'),
+                    profile_name: window.user.get('profile_name'),
                     abuse_flaggers: [],
                     user_id: window.user.get('id'),
                     id: 'unsaved'
