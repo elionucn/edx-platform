@@ -24455,3 +24455,11 @@ msgid ""
 msgstr ""
 "Una nueva revisión ha sido creada: Fusión entre la revisión #%(r1)d y la "
 "revisión #%(r2)d"
+
+#: lms/djangoapps/instructor_task/tasks_helper
+msgid "Final Grade"
+msgstr "Nota Final"
+
+#: lms/djangoapps/instructor_task/tasks_helper
+msgid "Date Enrolled"
+msgstr "Fecha Matricula"

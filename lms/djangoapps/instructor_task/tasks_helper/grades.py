@@ -28,6 +28,8 @@ from student.roles import BulkRoleCache
 from xmodule.modulestore.django import modulestore
 from xmodule.partitions.partitions_service import PartitionService
 from xmodule.split_test_module import get_split_user_partitions
+from django.utils.translation import gettext as _
+from django.conf import settings
 
 from .runner import TaskProgress
 from .utils import upload_csv_to_report_store
@@ -235,7 +237,7 @@ class CourseGradeReport(object):
         Returns a list of all applicable column headers for this grade report.
         """
         return (
-            ["Student ID", "Email", "Username", "Nombre", "Fecha Matricula", "Nota Final"] +
+            ["Student ID", "Email", _("Username"), _("Name"), _("Date Enrolled"), _("Final Grade")] +
             self._grades_header(context) +
             (['Cohort Name'] if context.cohorts_enabled else []) +
             [u'Experiment Group ({})'.format(partition.name) for partition in context.course_experiments] +
@@ -316,6 +318,10 @@ class CourseGradeReport(object):
         to the headers for this report.
         """
         grade_results = []
+        if settings.FEATURES.get('ENABLE_GRADE_CONVERSION'):
+            final_grade = "{0:.2f}".format(course_grade.percent / 0.20)
+        else:
+            final_grade = course_grade.percent
         for assignment_type, assignment_info in context.graded_assignments.iteritems():
             for subsection_location in assignment_info['subsection_headers']:
                 try:
@@ -324,7 +330,10 @@ class CourseGradeReport(object):
                     grade_result = u'Not Available'
                 else:
                     if subsection_grade.graded_total.first_attempted is not None:
-                        grade_result = ("{0:.3}".format((subsection_grade.graded_total.earned / subsection_grade.graded_total.possible)/0.20))
+                        if settings.FEATURES.get('ENABLE_GRADE_CONVERSION'):
+                            grade_result = ("{0:.2f}".format((subsection_grade.graded_total.earned / subsection_grade.graded_total.possible)/0.20))
+                        else:
+                            grade_result = (subsection_grade.graded_total.earned / subsection_grade.graded_total.possible)
                     else:
                         grade_result = u'No realizado'
                 grade_results.append([grade_result])
@@ -332,8 +341,11 @@ class CourseGradeReport(object):
                 assignment_average = course_grade.grader_result['grade_breakdown'].get(assignment_type, {}).get(
                     'percent'
                 )
-                grade_results.append(["{0:.3}".format(assignment_average/0.20)])
-        return ["{0:.3}".format(course_grade.percent/0.20)] + _flatten(grade_results)
+                if settings.FEATURES.get('ENABLE_GRADE_CONVERSION'):
+                    grade_results.append(["{0:.2f}".format(assignment_average/0.20)])
+                else:
+                    grade_results.append([assignment_average])
+        return [final_grade] + _flatten(grade_results)
 
     def _user_cohort_group_names(self, user, context):
         """
@@ -455,12 +467,12 @@ class ProblemGradeReport(object):
         # This struct encapsulates both the display names of each static item in the
         # header row as values as well as the django User field names of those items
         # as the keys.  It is structured in this way to keep the values related.
-        header_row = OrderedDict([('id', 'Student ID'), ('email', 'Email'), ('username', 'Username')])
+        header_row = OrderedDict([('id', 'Student ID'), ('email', 'Email'), ('username', _('Username'))])
 
         graded_scorable_blocks = cls._graded_scorable_blocks_to_header(course_id)
 
         # Just generate the static fields for now.
-        rows = [list(header_row.values()) + ['Nombre', 'Fecha Matricula', 'Enrollment Status', 'Nota Final'] + _flatten(graded_scorable_blocks.values())]
+        rows = [list(header_row.values()) + [_('Name'), _('Date Enrolled'), 'Enrollment Status', _('Final Grade')] + _flatten(graded_scorable_blocks.values())]
         error_rows = [list(header_row.values()) + ['error_msg']]
         current_step = {'step': 'Calculating Grades'}
 
@@ -494,12 +506,17 @@ class ProblemGradeReport(object):
                     earned_possible_values.append([u'Not Available', u'Not Available'])
                 else:
                     if problem_score.first_attempted:
-                        earned_possible_values.append([("{0:.3}".format((problem_score.earned / problem_score.possible) / 0.20))])
+                        if settings.FEATURES.get('ENABLE_GRADE_CONVERSION'):
+                            earned_possible_values.append([("{0:.2f}".format((problem_score.earned / problem_score.possible) / 0.20))])
+                        else:
+                            earned_possible_values.append([(problem_score.earned / problem_score.possible)])
                     else:
                         earned_possible_values.append([u'No realizado'])
-
-            rows.append(student_fields + [profile_name, enrollment_date, enrollment_status, ("{0:.3}".format(course_grade.percent / 0.20))] + _flatten(earned_possible_values))
-
+            
+            if settings.FEATURES.get('ENABLE_GRADE_CONVERSION'):
+                rows.append(student_fields + [profile_name, enrollment_date, enrollment_status, ("{0:.2f}".format(course_grade.percent / 0.20))] + _flatten(earned_possible_values))
+            else:
+                rows.append(student_fields + [profile_name, enrollment_date, enrollment_status, (course_grade.percent)] + _flatten(earned_possible_values))
             task_progress.succeeded += 1
             if task_progress.attempted % status_interval == 0:
                 task_progress.update_task_state(extra_meta=current_step)
