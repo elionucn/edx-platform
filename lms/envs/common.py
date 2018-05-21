@@ -584,7 +584,7 @@ STANDALONE_FRAGMENT_VIEW_TEMPLATE = 'fragment-view-chromeless.html'
 AUTHENTICATION_BACKENDS = (
     'ratelimitbackend.backends.RateLimitModelBackend',
 )
-STUDENT_FILEUPLOAD_MAX_SIZE = 4 * 1000 * 1000  # 4 MB
+STUDENT_FILEUPLOAD_MAX_SIZE = 25 * 1000 * 1000  # 25 MB
 MAX_FILEUPLOADS_PER_INPUT = 20
 
 # Dev machines shouldn't need the book
@@ -897,8 +897,8 @@ MEDIA_ROOT = '/edx/var/edxapp/media/'
 MEDIA_URL = '/media/'
 
 # Locale/Internationalization
-TIME_ZONE = 'America/New_York'  # http://en.wikipedia.org/wiki/List_of_tz_zones_by_name
-LANGUAGE_CODE = 'en'  # http://www.i18nguy.com/unicode/language-identifiers.html
+TIME_ZONE = 'America/Bogota'  # http://en.wikipedia.org/wiki/List_of_tz_zones_by_name
+LANGUAGE_CODE = 'es-419'  # http://www.i18nguy.com/unicode/language-identifiers.html
 # these languages display right to left
 LANGUAGES_BIDI = ("he", "ar", "fa", "ur", "fa-ir", "rtl")
 
@@ -1095,7 +1095,7 @@ EDXNOTES_READ_TIMEOUT = 1.5  # time in seconds
 
 # The age at which a learner no longer requires parental consent, or None
 # if parental consent is never required.
-PARENTAL_CONSENT_AGE_LIMIT = 13
+PARENTAL_CONSENT_AGE_LIMIT = 6
 
 ################################# Jasmine ##################################
 JASMINE_TEST_DIRECTORY = PROJECT_ROOT + '/static/coffee'
