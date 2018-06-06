@@ -78,49 +78,14 @@ function($, date, TriggerChangeEventOnEnter) {
         datetime = date.parse(datetime);
         if (datetime) {
             if (timepickerInput.length > 0) {
-                var hours = datetime.getHours()-5;
-                var minutes = datetime.getMinutes();
-                switch(hours){
-                    case -5:
-                        hours = 19;
-                        break;
-                    case -4:
-                        hours = 20
-                        break;
-                    case -3:
-                        hours = 21
-                        break;
-                    case -2:
-                        hours = 22
-                        break;
-                    case -1:
-                        hours = 23
-                        break;
-                }
-                if (hours < 10){
-                    hours = '0' + hours;
-                }
-                if (minutes < 10){
-                    minutes = '0' + minutes;
-                }
-                var new_time = hours + ":" + minutes;
-                $(timepickerInput).timepicker('setTime', new_time);
+                datetime.setHours(datetime.getHours() - 5);
+                var new_hour = datetime.getHours();
+                $(timepickerInput).timepicker('setTime', datetime);
             }
-            var year = datetime.getFullYear();
-            var month = datetime.getMonth()+1;
-            var day = datetime.getDate();
-            var normal_hours = datetime.getHours();
-            if (normal_hours >= 0 & normal_hours <= 4){
-                day -= 1;
+            if (new_hour >= 0 & new_hour <= 4){
+                datetime.setDate(datetime.getDate() - 2);
             }
-            if (month < 10){
-                month = '0' + month;
-            }
-            if (day < 10){
-                day = '0' + day;
-            }
-            var new_date = month + "/" + day + "/" + year;
-            $(datepickerInput).datepicker('setDate', new_date);;
+            $(datepickerInput).datepicker('setDate', datetime);;
         }
     };
 
