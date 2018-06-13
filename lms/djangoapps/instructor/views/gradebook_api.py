@@ -73,7 +73,7 @@ def get_grade_book_page(request, course, course_key):
     enrolled_students = User.objects.filter(
         courseenrollment__course_id=course_key,
         courseenrollment__is_active=1
-    ).order_by('username').select_related("profile").exclude(courseaccessrole__role='staff')
+    ).order_by('username').select_related("profile").exclude(courseaccessrole__role='instructor')
 
     total_students = enrolled_students.count()
     page = calculate_page_info(current_offset, total_students)

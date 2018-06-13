@@ -308,7 +308,7 @@ class CourseGradeReport(object):
             args = [iter(iterable)] * chunk_size
             return izip_longest(*args, fillvalue=fillvalue)
 
-        users = CourseEnrollment.objects.users_enrolled_in(context.course_id, include_inactive=True).exclude(courseaccessrole__role='staff')
+        users = CourseEnrollment.objects.users_enrolled_in(context.course_id, include_inactive=True).exclude(courseaccessrole__role='instructor')
         users = users.select_related('profile__allow_certificate')
         return grouper(users)
 
