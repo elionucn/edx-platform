@@ -77,14 +77,11 @@ function($, date, TriggerChangeEventOnEnter) {
         // ISO-formatted date string.
         datetime = date.parse(datetime);
         if (datetime) {
-            var new_datetime = new Date(Date.UTC(
-                datetime.getFullYear(), datetime.getMonth(), datetime.getDate(),
-                datetime.getHours(), datetime.getMinutes()
-            ));
+            datetime.setUTCHours(datetime.getHours());
             if (timepickerInput.length > 0) {
-                $(timepickerInput).timepicker('setTime', new_datetime);
+                $(timepickerInput).timepicker('setTime', datetime);
             }
-            $(datepickerInput).datepicker('setDate', new_datetime);;
+            $(datepickerInput).datepicker('setDate', datetime);;
         }
     };
 
