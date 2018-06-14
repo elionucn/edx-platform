@@ -77,15 +77,14 @@ function($, date, TriggerChangeEventOnEnter) {
         // ISO-formatted date string.
         datetime = date.parse(datetime);
         if (datetime) {
+            var new_datetime = new Date(Date.UTC(
+                datetime.getFullYear(), datetime.getMonth(), datetime.getDate(),
+                datetime.getHours(), datetime.getMinutes()
+            ));
             if (timepickerInput.length > 0) {
-                datetime.setHours(datetime.getHours() - 5);
-                var new_hour = datetime.getHours();
-                $(timepickerInput).timepicker('setTime', datetime);
+                $(timepickerInput).timepicker('setTime', new_datetime);
             }
-            if (new_hour >= 0 & new_hour <= 4){
-                datetime.setDate(datetime.getDate() - 2);
-            }
-            $(datepickerInput).datepicker('setDate', datetime);;
+            $(datepickerInput).datepicker('setDate', new_datetime);;
         }
     };
 
