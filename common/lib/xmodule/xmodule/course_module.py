@@ -414,7 +414,6 @@ class CourseFields(object):
     advanced_modules = List(
         display_name=_("Advanced Module List"),
         help=_("Enter the names of the advanced modules to use in your course."),
-        default=["survey","poll","word_cloud", "edx_sga"],
         default=["survey","poll","word_cloud", "edx_sga", "scormxblock"],
         scope=Scope.settings
     )
