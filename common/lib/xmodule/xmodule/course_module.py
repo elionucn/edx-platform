@@ -414,7 +414,14 @@ class CourseFields(object):
     advanced_modules = List(
         display_name=_("Advanced Module List"),
         help=_("Enter the names of the advanced modules to use in your course."),
+<<<<<<< Updated upstream
         default=["survey","poll","word_cloud", "edx_sga"],
+=======
+<<<<<<< Updated upstream
+=======
+        default=["survey","poll","word_cloud", "edx_sga", "scormxblock"],
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes
         scope=Scope.settings
     )
     has_children = True
