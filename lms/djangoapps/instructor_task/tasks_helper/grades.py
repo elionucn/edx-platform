@@ -65,6 +65,14 @@ def _user_date_enrolled(user, course_id):
     enrollment_date = CourseEnrollment.objects.get(user_id=user, course_id=course_id).created
     return enrollment_date.strftime("%d-%m-%Y")
 
+def _unround_grade(grade):
+    """
+    Returns the grade without round
+    """
+    grade_result = str(grade)[:6]
+    grade_result = float(grade_result)
+    return grade_result
+
 def _flatten(iterable):
     return list(chain.from_iterable(iterable))
 
@@ -308,7 +316,7 @@ class CourseGradeReport(object):
             args = [iter(iterable)] * chunk_size
             return izip_longest(*args, fillvalue=fillvalue)
 
-        users = CourseEnrollment.objects.users_enrolled_in(context.course_id, include_inactive=True).exclude(courseaccessrole__role='instructor')
+        users = CourseEnrollment.objects.users_enrolled_in(context.course_id, include_inactive=True).exclude(courseaccessrole__role='staff')
         users = users.select_related('profile__allow_certificate')
         return grouper(users)
 
@@ -319,7 +327,11 @@ class CourseGradeReport(object):
         """
         grade_results = []
         if settings.FEATURES.get('ENABLE_GRADE_CONVERSION'):
-            final_grade = "{0:.2f}".format(course_grade.percent / 0.20)
+            total = 0
+            for key, value in course_grade.grader_result['grade_breakdown'].items():
+                percent = _unround_grade(value['percent'])
+                total += percent
+            final_grade = "{0:.2f}".format(total / 0.20)
         else:
             final_grade = course_grade.percent
         for assignment_type, assignment_info in context.graded_assignments.iteritems():
@@ -331,7 +343,8 @@ class CourseGradeReport(object):
                 else:
                     if subsection_grade.graded_total.first_attempted is not None:
                         if settings.FEATURES.get('ENABLE_GRADE_CONVERSION'):
-                            grade_result = ("{0:.2f}".format((subsection_grade.graded_total.earned / subsection_grade.graded_total.possible)/0.20))
+                            grade_result = subsection_grade.graded_total.earned / subsection_grade.graded_total.possible
+                            grade_result = "{0:.2f}".format(_unround_grade(grade_result) / 0.20)
                         else:
                             grade_result = (subsection_grade.graded_total.earned / subsection_grade.graded_total.possible)
                     else:
@@ -342,7 +355,8 @@ class CourseGradeReport(object):
                     'percent'
                 )
                 if settings.FEATURES.get('ENABLE_GRADE_CONVERSION'):
-                    grade_results.append(["{0:.2f}".format(assignment_average/0.20)])
+                    assignment_average = _unround_grade(assignment_average)
+                    grade_results.append(["{0:.2f}".format(assignment_average / 0.20)])
                 else:
                     grade_results.append([assignment_average])
         return [final_grade] + _flatten(grade_results)
@@ -495,8 +509,8 @@ class ProblemGradeReport(object):
                 continue
 
             enrollment_status = _user_enrollment_status(student, course_id)
-	    profile_name = _user_profile(student)
-	    enrollment_date = _user_date_enrolled(student, course_id)
+            profile_name = _user_profile(student)
+            enrollment_date = _user_date_enrolled(student, course_id)
 
             earned_possible_values = []
             for block_location in graded_scorable_blocks:
@@ -507,14 +521,20 @@ class ProblemGradeReport(object):
                 else:
                     if problem_score.first_attempted:
                         if settings.FEATURES.get('ENABLE_GRADE_CONVERSION'):
-                            earned_possible_values.append([("{0:.2f}".format((problem_score.earned / problem_score.possible) / 0.20))])
+                            grade_result = problem_score.earned / problem_score.possible
+                            grade_result = "{0:.2f}".format(_unround_grade(grade_result) / 0.20)
+                            earned_possible_values.append([grade_result])
                         else:
                             earned_possible_values.append([(problem_score.earned / problem_score.possible)])
                     else:
                         earned_possible_values.append([u'No realizado'])
             
             if settings.FEATURES.get('ENABLE_GRADE_CONVERSION'):
-                rows.append(student_fields + [profile_name, enrollment_date, enrollment_status, ("{0:.2f}".format(course_grade.percent / 0.20))] + _flatten(earned_possible_values))
+                total = 0
+                for key, value in course_grade.grader_result['grade_breakdown'].items():
+                    percent = _unround_grade(value['percent'])
+                    total += percent
+                rows.append(student_fields + [profile_name, enrollment_date, enrollment_status, ("{0:.2f}".format(total / 0.20))] + _flatten(earned_possible_values))
             else:
                 rows.append(student_fields + [profile_name, enrollment_date, enrollment_status, (course_grade.percent)] + _flatten(earned_possible_values))
             task_progress.succeeded += 1
