@@ -13065,6 +13065,10 @@ msgstr "Cuenta"
 msgid "Help"
 msgstr "Ayuda"
 
+#: custom-themes/edx-platform/elion-theme/lms/templates/navigation/navbar-authenticated.html
+msgid "Buzone"
+msgstr "Correo"
+
 #: cms/templates/widgets/sock.html
 #: themes/edx.org/cms/templates/widgets/sock.html
 msgid "Looking for help with {studio_name}?"
