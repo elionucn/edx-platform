@@ -78,7 +78,7 @@
                             })
                         },
                         {
-                            view: new AccountSettingsFieldViews.TextFieldView({
+                            view: new AccountSettingsFieldViews.ReadonlyFieldView({
                                 model: userAccountModel,
                                 title: gettext('Full Name'),
                                 valueAttribute: 'name',
