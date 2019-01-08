@@ -18,6 +18,7 @@ from instructor_analytics.csvs import format_dictlist
 from lms.djangoapps.grades.context import grading_context, grading_context_for_course
 from lms.djangoapps.grades.models import PersistentCourseGrade
 from lms.djangoapps.grades.new.course_grade_factory import CourseGradeFactory
+from lms.djangoapps.grades.new.course_data import CourseData
 from lms.djangoapps.teams.models import CourseTeamMembership
 from lms.djangoapps.verify_student.models import SoftwareSecurePhotoVerification
 from openedx.core.djangoapps.content.block_structure.api import get_course_in_cache
@@ -33,6 +34,7 @@ from django.conf import settings
 
 from .runner import TaskProgress
 from .utils import upload_csv_to_report_store
+import sys, os
 
 TASK_LOG = logging.getLogger('edx.celery.task')
 
@@ -482,65 +484,149 @@ class ProblemGradeReport(object):
         # header row as values as well as the django User field names of those items
         # as the keys.  It is structured in this way to keep the values related.
         header_row = OrderedDict([('id', 'Student ID'), ('email', 'Email'), ('username', _('Username'))])
-
-        graded_scorable_blocks = cls._graded_scorable_blocks_to_header(course_id)
-
-        # Just generate the static fields for now.
-        rows = [list(header_row.values()) + [_('Name'), _('Date Enrolled'), 'Enrollment Status', _('Final Grade')] + _flatten(graded_scorable_blocks.values())]
         error_rows = [list(header_row.values()) + ['error_msg']]
-        current_step = {'step': 'Calculating Grades'}
 
-        # Bulk fetch and cache enrollment states so we can efficiently determine
-        # whether each user is currently enrolled in the course.
-        CourseEnrollment.bulk_fetch_enrollment_states(enrolled_students, course_id)
+        course = get_course_by_id(course_id)        
+        if course.org == 'Cibercolegio' :
 
-        course = get_course_by_id(course_id)
-        for student, course_grade, error in CourseGradeFactory().iter(enrolled_students, course):
-            student_fields = [getattr(student, field_name) for field_name in header_row]
-            task_progress.attempted += 1
-
-            if not course_grade:
-                err_msg = error.message
-                # There was an error grading this student.
-                if not err_msg:
-                    err_msg = u'Unknown error'
-                error_rows.append(student_fields + [err_msg])
-                task_progress.failed += 1
-                continue
-
-            enrollment_status = _user_enrollment_status(student, course_id)
-            profile_name = _user_profile(student)
-            enrollment_date = _user_date_enrolled(student, course_id)
-
-            earned_possible_values = []
-            for block_location in graded_scorable_blocks:
-                try:
-                    problem_score = course_grade.problem_scores[block_location]
-                except KeyError:
-                    earned_possible_values.append([u'Not Available', u'Not Available'])
-                else:
-                    if problem_score.first_attempted:
-                        if settings.FEATURES.get('ENABLE_GRADE_CONVERSION'):
-                            grade_result = problem_score.earned / problem_score.possible
-                            grade_result = "{0:.2f}".format(_unround_grade(grade_result) / 0.20)
-                            earned_possible_values.append([grade_result])
-                        else:
-                            earned_possible_values.append([(problem_score.earned / problem_score.possible)])
-                    else:
-                        earned_possible_values.append([u'No realizado'])
+            single_student = enrolled_students[0]
+            try:
+                course_grade = CourseGradeFactory().create(single_student, course)
+                courseware_summary = course_grade.chapter_grades.values()
+                chapters_labels = []
+                course_data = CourseData(single_student, course)
+                for chapter in courseware_summary: # Periodos
+                    for section in chapter['sections']: # Lecciones
+                        if section.graded and len(section.problem_scores.values()) > 0:
+                            for score in section.problem_scores: # Problemas
+                                block = course_data.structure[score]
+                                label_text = u"{} | {} - {}".format(chapter['display_name'], section.display_name, block.display_name)
+                                chapters_labels = chapters_labels + [label_text]
+                    chapters_labels = chapters_labels + ['{} FINAL'.format(chapter['display_name']).upper()]
             
-            if settings.FEATURES.get('ENABLE_GRADE_CONVERSION'):
-                total = 0
-                for key, value in course_grade.grader_result['grade_breakdown'].items():
-                    percent = _unround_grade(value['percent'])
-                    total += percent
-                rows.append(student_fields + [profile_name, enrollment_date, enrollment_status, ("{0:.2f}".format(total / 0.20))] + _flatten(earned_possible_values))
-            else:
-                rows.append(student_fields + [profile_name, enrollment_date, enrollment_status, (course_grade.percent)] + _flatten(earned_possible_values))
-            task_progress.succeeded += 1
-            if task_progress.attempted % status_interval == 0:
-                task_progress.update_task_state(extra_meta=current_step)
+            except Exception as e:
+                exc_type, exc_obj, exc_tb = sys.exc_info()
+                fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+                TASK_LOG.error('ERROR AL GENERAR ENCABEZADOS DEL REPORTE: %s, %s, %s, %s', e, exc_type, fname, exc_tb.tb_lineno)
 
+            # Just generate the static fields for now.
+            rows = [list(header_row.values()) + [_('Name'), _('Date Enrolled'), 'Enrollment Status', _('Final Grade')] + chapters_labels]            
+            current_step = {'step': 'Calculating Grades'}
+
+            # Bulk fetch and cache enrollment states so we can efficiently determine
+            # whether each user is currently enrolled in the course.
+            CourseEnrollment.bulk_fetch_enrollment_states(enrolled_students, course_id)
+            try:
+                for student in enrolled_students:
+                    student_fields = [getattr(student, field_name) for field_name in header_row]
+                    profile_name = _user_profile(student)
+                    enrollment_date = _user_date_enrolled(student, course_id)
+                    enrollment_status = _user_enrollment_status(student, course_id)
+
+                    task_progress.attempted += 1
+                    course_grade = CourseGradeFactory().create(student, course)
+                    courseware_summary = course_grade.chapter_grades.values()
+
+                    tmp = []
+                    chapter_count = 0
+                    for chapter in courseware_summary: # Periodos
+                        acum = 0
+                        count = 0
+                        for section in chapter['sections']: # Lecciones
+                            if section.graded:
+                                earned = section.all_total.earned
+                                total = section.all_total.possible
+                                percentage = str(earned/total)[:6] if total > 0 else float(0)
+                                percentage = float(percentage)
+                                acum += percentage
+                                if total > 0:
+                                    count += 1
+                                if len(section.problem_scores.values()) > 0:
+                                    for score in section.problem_scores.values(): # Problemas
+                                        if score.first_attempted:
+                                            score_value = score.earned / 0.20
+                                            score_value = str(score_value)[:6]
+                                            score_value = "{0:.2f}".format(float(score_value))
+                                            tmp = tmp + [score_value]
+                                        else:
+                                            tmp = tmp + [u'No realizado']
+                        acum = str(acum)[:6]
+                        acum = float(acum) / 0.20
+                        average_chapter = acum / count
+                        average_chapter = str(average_chapter)[:6]
+                        average_chapter = "{0:.2f}".format(float(average_chapter))
+                        tmp = tmp + [average_chapter]
+
+                        if count > 0 :
+                            chapter_count = chapter_count + 1
+                    
+                    # Final grade
+                    final_grade = 0
+                    for key, value in course_grade.grader_result['grade_breakdown'].items():
+                        percent = _unround_grade(value['percent'])
+                        final_grade += percent
+
+                    final_grade = final_grade / chapter_count
+                        
+                    rows.append(student_fields + [profile_name, enrollment_date, enrollment_status, ("{0:.2f}".format(final_grade / 0.20))]  + tmp)
+                
+                    task_progress.succeeded += 1
+                    if task_progress.attempted % status_interval == 0:
+                        task_progress.update_task_state(extra_meta=current_step)
+            except Exception as e: 
+                exc_type, exc_obj, exc_tb = sys.exc_info()
+                fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+                TASK_LOG.error('ERROR AL GENERAR FILAS CON NOTAS: %s, %s, %s, %s', e, exc_type, fname, exc_tb.tb_lineno)
+        else :
+            ######## original
+            graded_scorable_blocks = cls._graded_scorable_blocks_to_header(course_id)
+            rows = [list(header_row.values()) + [_('Name'), _('Date Enrolled'), 'Enrollment Status', _('Final Grade')] + _flatten(graded_scorable_blocks.values())]
+            for student, course_grade, error in CourseGradeFactory().iter(enrolled_students, course):
+                student_fields = [getattr(student, field_name) for field_name in header_row]
+                task_progress.attempted += 1
+
+                if not course_grade:
+                    err_msg = error.message
+                    # There was an error grading this student.
+                    if not err_msg:
+                        err_msg = u'Unknown error'
+                    error_rows.append(student_fields + [err_msg])
+                    task_progress.failed += 1
+                    continue
+
+                enrollment_status = _user_enrollment_status(student, course_id)
+                profile_name = _user_profile(student)
+                enrollment_date = _user_date_enrolled(student, course_id)
+
+                earned_possible_values = []
+                for block_location in graded_scorable_blocks:
+                    try:
+                        problem_score = course_grade.problem_scores[block_location]
+                    except KeyError:
+                        earned_possible_values.append([u'Not Available', u'Not Available'])
+                    else:
+                        if problem_score.first_attempted:
+                            if settings.FEATURES.get('ENABLE_GRADE_CONVERSION'):
+                                grade_result = problem_score.earned / problem_score.possible
+                                grade_result = "{0:.2f}".format(_unround_grade(grade_result) / 0.20)
+                                earned_possible_values.append([grade_result])
+                            else:
+                                earned_possible_values.append([(problem_score.earned / problem_score.possible)])
+                        else:
+                            earned_possible_values.append([u'No realizado'])
+                
+                if settings.FEATURES.get('ENABLE_GRADE_CONVERSION'):
+                    total = 0
+                    for key, value in course_grade.grader_result['grade_breakdown'].items():
+                        percent = _unround_grade(value['percent'])
+                        total += percent
+                    rows.append(student_fields + [profile_name, enrollment_date, enrollment_status, ("{0:.2f}".format(total / 0.20))] + _flatten(earned_possible_values))
+                else:
+                    rows.append(student_fields + [profile_name, enrollment_date, enrollment_status, (course_grade.percent)] + _flatten(earned_possible_values))
+                task_progress.succeeded += 1
+                if task_progress.attempted % status_interval == 0:
+                    task_progress.update_task_state(extra_meta=current_step)
+            ######## original
         # Perform the upload if any students have been successfully graded
         if len(rows) > 1:
             upload_csv_to_report_store(rows, 'problem_grade_report', course_id, start_date)
