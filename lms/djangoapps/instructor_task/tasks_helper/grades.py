@@ -2,6 +2,7 @@
 Functionality for generating grade reports.
 """
 import logging
+from pprint import pprint
 import re
 from collections import OrderedDict
 from datetime import datetime
@@ -495,11 +496,13 @@ class ProblemGradeReport(object):
                 courseware_summary = course_grade.chapter_grades.values()
                 chapters_labels = []
                 course_data = CourseData(single_student, course)
+                # TASK_LOG.error('COURSEDAT: %s', vars(course_data))
                 for chapter in courseware_summary: # Periodos
                     for section in chapter['sections']: # Lecciones
                         if section.graded and len(section.problem_scores.values()) > 0:
                             for score in section.problem_scores: # Problemas
                                 block = course_data.structure[score]
+                                # TASK_LOG.error('BLOCKBLOCK: %s', vars(block))
                                 label_text = u"{} | {} - {}".format(chapter['display_name'], section.display_name, block.display_name)
                                 chapters_labels = chapters_labels + [label_text]
                     chapters_labels = chapters_labels + ['{} FINAL'.format(chapter['display_name']).upper()]
@@ -528,21 +531,36 @@ class ProblemGradeReport(object):
                     courseware_summary = course_grade.chapter_grades.values()
 
                     tmp = []
-                    chapter_count = 0
-                    for chapter in courseware_summary: # Periodos
+
+                    # RAW PERCENTS
+                    raw_percents = []
+                    # Obtain a dict with the percents of each category
+                    for key, value in course_grade.grader_result['grade_breakdown'].items():
+                        raw_percents.append(value)
+
+                    # UNIQUE PERCENTS
+                    unique_percents = {}
+                    for percent in raw_percents:
+                        key = percent['category']
+                        if key not in unique_percents:
+                            detail = percent['detail']
+                            parts = detail.split('possible')
+                            intval = parts[1].split('.')[0]
+                            percent = int(intval)
+                            unique_percents[key] = percent
+
+                    # TASK_LOG.error('UNIQUE PERCENTS: %s', unique_percents)
+
+                    chapter_grades_acum = 0
+                    for chapter in courseware_summary: # Periods / Sections
+                        category_grades = []
                         acum = 0
                         count = 0
-                        for section in chapter['sections']: # Lecciones
+                        for section in chapter['sections']: # Lections / Subsections
+                            # TASK_LOG.error('SECTIONFORMAT: %s', section.format)
                             if section.graded:
-                                earned = section.all_total.earned
-                                total = section.all_total.possible
-                                percentage = str(earned/total)[:6] if total > 0 else float(0)
-                                percentage = float(percentage)
-                                acum += percentage
-                                if total > 0:
-                                    count += 1
                                 if len(section.problem_scores.values()) > 0:
-                                    for score in section.problem_scores.values(): # Problemas
+                                    for score in section.problem_scores.values(): # Problems / Components
                                         if score.first_attempted:
                                             score_value = score.earned / 0.20
                                             score_value = str(score_value)[:6]
@@ -550,25 +568,46 @@ class ProblemGradeReport(object):
                                             tmp = tmp + [score_value]
                                         else:
                                             tmp = tmp + [u'No realizado']
-                        acum = str(acum)[:6]
-                        acum = float(acum) / 0.20
-                        average_chapter = acum / count
-                        average_chapter = str(average_chapter)[:6]
-                        average_chapter = "{0:.2f}".format(float(average_chapter))
-                        tmp = tmp + [average_chapter]
+                                            score_value = 0
+                                        # Assing each grade to its category
+                                        dictval = {
+                                            'category': section.format,
+                                            'grade': score_value
+                                        }
+                                        category_grades.append(dictval)
 
-                        if count > 0 :
-                            chapter_count = chapter_count + 1
-                    
-                    # Final grade
-                    final_grade = 0
-                    for key, value in course_grade.grader_result['grade_breakdown'].items():
-                        percent = _unround_grade(value['percent'])
-                        final_grade += percent
+                        # TASK_LOG.error('CATEGORY GRADES: %s', category_grades)
 
-                    final_grade = final_grade / chapter_count
+                        # Group the grades by its category
+                        group_grades = {}
+
+                        for grade in category_grades:
+                            key = grade['category']
+                            float_grade = float(grade['grade'])
+                            if key in group_grades:
+                                group_grades[key].append(float_grade)
+                            else:
+                                group_grades[key] = [float_grade]
                         
-                    rows.append(student_fields + [profile_name, enrollment_date, enrollment_status, ("{0:.2f}".format(final_grade / 0.20))]  + tmp)
+                        # TASK_LOG.error('GROUPED GRADES: %s', group_grades)
+
+                        # Calculate the chapter (Section) final grade
+                        chapter_grade = 0
+
+                        for k in group_grades:
+                            l = group_grades[k]
+                            avg = sum(l)/float(len(l))
+                            pond = avg * unique_percents[k] / 100
+                            chapter_grade += pond
+
+                        chapter_grade = float("{0:.2f}".format(chapter_grade))
+                        tmp = tmp + [chapter_grade]
+                        chapter_grades_acum += chapter_grade
+
+                    final_grade = chapter_grades_acum / len(courseware_summary)
+                    # TASK_LOG.error('ACUM: %s, COUNT: %s', chapter_grades_acum, len(courseware_summary))
+                        
+                    rows.append(student_fields + [profile_name, enrollment_date, enrollment_status, ("{0:.2f}".format(final_grade))]  + tmp)
                 
                     task_progress.succeeded += 1
                     if task_progress.attempted % status_interval == 0:
