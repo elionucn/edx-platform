@@ -562,7 +562,7 @@ class ProblemGradeReport(object):
                                 if len(section.problem_scores.values()) > 0:
                                     for score in section.problem_scores.values(): # Problems / Components
                                         if score.first_attempted:
-                                            score_value = score.earned / 0.20
+                                            score_value = score.earned / score.possible / 0.20
                                             score_value = str(score_value)[:6]
                                             score_value = "{0:.2f}".format(float(score_value))
                                             tmp = tmp + [score_value]
