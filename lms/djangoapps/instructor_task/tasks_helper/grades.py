@@ -505,7 +505,7 @@ class ProblemGradeReport(object):
                                 # TASK_LOG.error('BLOCKBLOCK: %s', vars(block))
                                 label_text = u"{} | {} - {}".format(chapter['display_name'], section.display_name, block.display_name)
                                 chapters_labels = chapters_labels + [label_text]
-                    chapters_labels = chapters_labels + ['{} FINAL'.format(chapter['display_name']).upper()]
+                    chapters_labels = chapters_labels + [u'{} FINAL'.format(chapter['display_name']).upper()]
             
             except Exception as e:
                 exc_type, exc_obj, exc_tb = sys.exc_info()
