@@ -3,6 +3,8 @@ from config_models.admin import ConfigurationModelAdmin
 from django import forms
 from django.contrib.auth import get_user_model
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+from django.contrib.admin.models import LogEntry, CHANGE
+from django.contrib.contenttypes.models import ContentType
 from django.utils.translation import ugettext_lazy as _
 from opaque_keys import InvalidKeyError
 from opaque_keys.edx.keys import CourseKey
@@ -156,6 +158,44 @@ class CourseEnrollmentAdmin(admin.ModelAdmin):
     list_filter = ('mode', 'is_active',)
     raw_id_fields = ('user',)
     search_fields = ('course_id', 'mode', 'user__username',)
+
+    actions = [
+        'deactivate_selected_enrollments',
+        'activate_selected_enrollments',
+    ]
+
+    def deactivate_selected_enrollments(self, request, queryset):
+        """Deactivate selected enrollments."""
+        queryset.update(is_active=False)
+
+        ct = ContentType.objects.get_for_model(queryset.model)
+        for obj in queryset:
+
+            LogEntry.objects.log_action(
+                user_id=request.user.id,
+                content_type_id=ct.pk,
+                object_id=obj.pk,
+                object_repr=str(obj),
+                action_flag=CHANGE,
+                change_message="Inactivo el enrolamiento del usuario masivamente"
+            )
+    deactivate_selected_enrollments.short_description = 'Inactivar enrolamientos seleccionados'
+
+    def activate_selected_enrollments(self, request, queryset):
+        """Activate selected enrollments."""
+        queryset.update(is_active=True)
+
+        ct = ContentType.objects.get_for_model(queryset.model)
+        for obj in queryset:
+            LogEntry.objects.log_action(
+                user_id=request.user.id,
+                content_type_id=ct.pk,
+                object_id=obj.pk,
+                object_repr=str(obj),
+                action_flag=CHANGE,
+                change_message="Activo el enrolamiento del usuario masivamente"
+            )
+    activate_selected_enrollments.short_description = 'Activar enrolamientos seleccionados'
 
     def queryset(self, request):
         return super(CourseEnrollmentAdmin, self).queryset(request).select_related('user')
